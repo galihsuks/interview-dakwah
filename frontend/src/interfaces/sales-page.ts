@@ -14,6 +14,7 @@ export interface SalesPage {
 }
 
 export interface SalesPageVariant {
+  id: number;
   label: string;
   plain_html: string;
 }

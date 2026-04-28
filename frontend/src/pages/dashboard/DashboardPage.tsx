@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Navigate } from "react-router-dom";
+import { Navigate, useNavigate } from "react-router-dom";
 
 import { AppHeader } from "../../components/common/AppHeader";
 import { SalesPageForm } from "../../components/forms/SalesPageForm";
@@ -18,7 +18,7 @@ import type {
 import { useAuthStore } from "../../store/auth.store";
 import { useToastStore } from "../../store/toast.store";
 import { normalizeApiError } from "../../utils/api-error";
-import { downloadHtmlVariant, openHtmlInNewTab } from "../../utils/exporters";
+import { downloadHtmlVariant } from "../../utils/exporters";
 
 const initialForm: SalesFormState = {
     product_name: "",
@@ -34,6 +34,7 @@ export function DashboardPage() {
     const user = useAuthStore((state) => state.user);
     const clearSession = useAuthStore((state) => state.clearSession);
     const pushToast = useToastStore((state) => state.pushToast);
+    const navigate = useNavigate();
 
     const [form, setForm] = useState<SalesFormState>(initialForm);
     const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -203,8 +204,8 @@ export function DashboardPage() {
                     onDelete={(id) => {
                         void handleDelete(id);
                     }}
-                    onOpenVariant={(plainHtml) => {
-                        openHtmlInNewTab(plainHtml);
+                    onOpenVariant={(variantId) => {
+                        navigate(`/preview/${variantId}`);
                     }}
                     onDownloadVariant={(
                         plainHtml,

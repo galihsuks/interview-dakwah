@@ -10,7 +10,7 @@ interface SalesPageHistoryProps {
     onSearchChange: (value: string) => void;
     onSelect: (page: SalesPage) => void;
     onDelete: (id: number) => void;
-    onOpenVariant: (plainHtml: string) => void;
+    onOpenVariant: (variantId: number) => void;
     onDownloadVariant: (
         plainHtml: string,
         productName: string,
@@ -167,7 +167,7 @@ export function SalesPageHistory({
                                                             type="button"
                                                             onClick={() =>
                                                                 onOpenVariant(
-                                                                    variant.plain_html,
+                                                                    variant.id,
                                                                 )
                                                             }
                                                             className="inline-flex flex-1 items-center justify-center gap-1 rounded border border-slate-200 px-2 py-1 text-[11px] font-medium text-slate-600 transition hover:bg-slate-100"

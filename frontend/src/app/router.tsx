@@ -4,6 +4,7 @@ import { AuthGuard } from '../components/common/AuthGuard';
 import { ArchitecturePage } from '../pages/architecture/ArchitecturePage';
 import { AuthPage } from '../pages/auth/AuthPage';
 import { DashboardPage } from '../pages/dashboard/DashboardPage';
+import { HtmlVariantPreviewPage } from '../pages/preview/HtmlVariantPreviewPage';
 import { GeminiSettingsPage } from '../pages/settings/GeminiSettingsPage';
 
 export const router = createBrowserRouter([
@@ -25,6 +26,10 @@ export const router = createBrowserRouter([
       {
         path: '/settings/gemini',
         element: <GeminiSettingsPage />,
+      },
+      {
+        path: '/preview/:id',
+        element: <HtmlVariantPreviewPage />,
       },
     ],
   },

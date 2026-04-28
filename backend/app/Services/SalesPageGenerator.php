@@ -13,9 +13,31 @@ class SalesPageGenerator
 {
     public function generate(array $input, User $user): array
     {
+        $decoded = $this->requestGeminiJson($this->buildPrompt($input), $user);
+
+        return $this->normalizeGeminiOutput($decoded, $input);
+    }
+
+    public function regenerateVariantSection(array $variant, string $section, string $instructionPrompt, User $user): string
+    {
+        $decoded = $this->requestGeminiJson(
+            $this->buildVariantRegeneratePrompt($variant, $section, $instructionPrompt),
+            $user
+        );
+
+        $plainHtml = trim((string) ($decoded['plain_html'] ?? ''));
+        if (! $this->isFullHtmlDocument($plainHtml)) {
+            throw new RuntimeException('Gagal regenerate section: Gemini tidak mengembalikan full HTML document yang valid.');
+        }
+
+        return $plainHtml;
+    }
+
+    private function requestGeminiJson(string $prompt, User $user): array
+    {
         $account = GeminiAccount::getSettingsByUserId((int) $user->id);
         $apiKey = $account['api_key'] ?? null;
-        $model = $account['model'] ?? config('services.gemini.model', 'gemini-2.0-flash');
+        $model = $account['model'] ?? config('services.gemini.model', 'gemini-3-flash-preview');
 
         if (blank($apiKey)) {
             throw new RuntimeException('Gemini API key belum diisi. Buka halaman Settings untuk mengatur API key.');
@@ -26,7 +48,7 @@ class SalesPageGenerator
                 'contents' => [
                     [
                         'parts' => [
-                            ['text' => $this->buildPrompt($input)],
+                            ['text' => $prompt],
                         ],
                     ],
                 ],
@@ -57,7 +79,7 @@ class SalesPageGenerator
 
         $this->syncQuotaInfo((int) $user->id, data_get($responseJSON, 'usageMetadata.totalTokenCount'));
 
-        return $this->normalizeGeminiOutput($decoded, $input);
+        return $decoded;
     }
 
     private function buildPrompt(array $input): string
@@ -183,6 +205,46 @@ class SalesPageGenerator
             - Sertakan schema.org JSON-LD inline jika relevan.
 
             Hasil akhir harus hanya valid JSON sesuai format yang diminta.
+        PROMPT;
+    }
+
+    private function buildVariantRegeneratePrompt(array $variant, string $section, string $instructionPrompt): string
+    {
+        $salesPage = $variant['sales_page'] ?? [];
+        $productName = (string) ($salesPage['product_name'] ?? '');
+        $productDescription = (string) ($salesPage['product_description'] ?? '');
+        $features = implode(', ', (array) ($salesPage['key_features'] ?? []));
+        $targetAudience = (string) ($salesPage['target_audience'] ?? 'General');
+        $price = (string) ($salesPage['price'] ?? 'Contact us');
+        $usp = (string) ($salesPage['unique_selling_points'] ?? 'N/A');
+        $currentHtml = (string) ($variant['plain_html'] ?? '');
+
+        return <<<PROMPT
+            Kamu adalah editor landing page HTML.
+            Tugas: perbarui HANYA section "{$section}" dari HTML berikut, dan ikuti instruksi custom user.
+
+            INPUT KONTEN:
+            - nama produk/layanan: {$productName}
+            - deskripsi produk: {$productDescription}
+            - fitur: {$features}
+            - target audience: {$targetAudience}
+            - harga: {$price}
+            - unique selling points: {$usp}
+
+            INSTRUKSI USER UNTUK SECTION:
+            {$instructionPrompt}
+
+            HTML SAAT INI:
+            {$currentHtml}
+
+            ATURAN:
+            - Pertahankan desain visual, struktur, dan style semaksimal mungkin.
+            - Ubah hanya konten/elemen yang berhubungan dengan section "{$section}".
+            - Kembalikan full HTML document lengkap.
+            - Output HARUS valid JSON saja (tanpa markdown), format:
+            {
+              "plain_html": "full html document"
+            }
         PROMPT;
     }
 

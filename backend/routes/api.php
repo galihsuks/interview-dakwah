@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\GeminiAccountController;
+use App\Http\Controllers\Api\HtmlVariantController;
 use App\Http\Controllers\Api\SalesPageController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\RegisteredUserController;
@@ -19,4 +20,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
     Route::get('/gemini-account', [GeminiAccountController::class, 'show']);
     Route::put('/gemini-account', [GeminiAccountController::class, 'update']);
+
+    Route::get('/html-variants/{id}', [HtmlVariantController::class, 'show']);
+    Route::put('/html-variants/{id}/regenerate-section', [HtmlVariantController::class, 'regenerateSection']);
 });
