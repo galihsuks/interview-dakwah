@@ -75,9 +75,6 @@ export function DashboardPage() {
 
     const effectiveSelectedId = useMemo(() => {
         const pages = salesData ?? [];
-        if (pages.length === 0) {
-            return null;
-        }
 
         const hasSelected =
             selectedId !== null && pages.some((page) => page.id === selectedId);
@@ -85,7 +82,7 @@ export function DashboardPage() {
             return selectedId;
         }
 
-        return pages[0].id;
+        return null;
     }, [salesData, selectedId]);
 
     useEffect(() => {
@@ -184,7 +181,7 @@ export function DashboardPage() {
                 loading={logoutPending}
             />
 
-            <section className="mb-4 grid gap-4 lg:grid-cols-[1.55fr_1fr]">
+            <section className="mb-4 grid gap-4">
                 <SalesPageForm
                     form={form}
                     mode={selectedId ? "update" : "create"}
@@ -209,7 +206,11 @@ export function DashboardPage() {
                     onOpenVariant={(plainHtml) => {
                         openHtmlInNewTab(plainHtml);
                     }}
-                    onDownloadVariant={(plainHtml, productName, variantLabel) => {
+                    onDownloadVariant={(
+                        plainHtml,
+                        productName,
+                        variantLabel,
+                    ) => {
                         downloadHtmlVariant(
                             plainHtml,
                             productName,

@@ -2,146 +2,107 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Http\Controllers\Controller;
-use App\Http\Requests\StoreSalesPageRequest;
-use App\Http\Requests\UpdateSalesPageRequest;
 use App\Models\SalesPage;
 use App\Services\SalesPageGenerator;
 use Illuminate\Database\QueryException;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use RuntimeException;
-use Symfony\Component\HttpFoundation\Response;
 
-class SalesPageController extends Controller
+class SalesPageController extends BaseApiController
 {
     public function __construct(private readonly SalesPageGenerator $generator)
     {
     }
 
-    /**
-     * Display a listing of the resource.
-     */
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
-        $salesPages = SalesPage::query()
-            ->where('user_id', auth()->id())
-            ->with('htmlVariants')
-            ->latest()
-            ->get();
+        $userId = (int) $request->user()->id;
+        $rows = SalesPage::getAllByUserId($userId);
 
-        return response()->json($salesPages);
+        return $this->success('Sales pages loaded.', $rows);
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
-    public function store(StoreSalesPageRequest $request): JsonResponse
+    public function show(Request $request, int $id): JsonResponse
     {
-        $validated = $request->validated();
+        $userId = (int) $request->user()->id;
+        $row = SalesPage::findOneByIdAndUserId($id, $userId);
+
+        if (! $row) {
+            return $this->notFound('Sales page tidak ditemukan.');
+        }
+
+        return $this->success('Sales page loaded.', $row);
+    }
+
+    public function store(Request $request): JsonResponse
+    {
+        $validated = $this->validateSalesPage($request);
+
         try {
             $generated = $this->generator->generate($validated, $request->user());
+            $created = SalesPage::createWithVariants(
+                (int) $request->user()->id,
+                $validated,
+                (string) $generated['detected_language'],
+                (array) $generated['variants']
+            );
 
-            $salesPage = DB::transaction(function () use ($request, $validated, $generated) {
-                $salesPage = SalesPage::create([
-                    'user_id' => $request->user()->id,
-                    'product_name' => $validated['product_name'],
-                    'product_description' => $validated['product_description'],
-                    'key_features' => $validated['key_features'] ?? [],
-                    'target_audience' => $validated['target_audience'] ?? null,
-                    'price' => $validated['price'] ?? null,
-                    'unique_selling_points' => $validated['unique_selling_points'] ?? null,
-                    'detected_language' => $generated['detected_language'],
-                ]);
-
-                $this->replaceHtmlVariants($salesPage, $generated['variants']);
-
-                return $salesPage->load('htmlVariants');
-            });
-
-            return response()->json($salesPage, Response::HTTP_CREATED);
+            return $this->created('Sales page berhasil dibuat.', $created);
         } catch (RuntimeException $exception) {
-            return response()->json([
-                'message' => $exception->getMessage(),
-            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+            return $this->unprocessable($exception->getMessage());
         } catch (QueryException) {
-            return response()->json([
-                'message' => 'Gagal menyimpan sales page ke database.',
-            ], Response::HTTP_INTERNAL_SERVER_ERROR);
+            return $this->serverError('Gagal menyimpan sales page ke database.');
         }
     }
 
-    /**
-     * Display the specified resource.
-     */
-    public function show(SalesPage $salesPage): JsonResponse
+    public function update(Request $request, int $id): JsonResponse
     {
-        $this->abortIfNotOwnedByAuthUser($salesPage);
+        $validated = $this->validateSalesPage($request);
 
-        return response()->json($salesPage->load('htmlVariants'));
-    }
-
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(UpdateSalesPageRequest $request, SalesPage $salesPage): JsonResponse
-    {
-        $this->abortIfNotOwnedByAuthUser($salesPage);
-
-        $validated = $request->validated();
         try {
             $generated = $this->generator->generate($validated, $request->user());
-            $updatedSalesPage = DB::transaction(function () use ($salesPage, $validated, $generated) {
+            $updated = SalesPage::updateWithVariants(
+                $id,
+                (int) $request->user()->id,
+                $validated,
+                (string) $generated['detected_language'],
+                (array) $generated['variants']
+            );
 
-                $salesPage->update([
-                    'product_name' => $validated['product_name'],
-                    'product_description' => $validated['product_description'],
-                    'key_features' => $validated['key_features'] ?? [],
-                    'target_audience' => $validated['target_audience'] ?? null,
-                    'price' => $validated['price'] ?? null,
-                    'unique_selling_points' => $validated['unique_selling_points'] ?? null,
-                    'detected_language' => $generated['detected_language'],
-                ]);
+            if (! $updated) {
+                return $this->notFound('Sales page tidak ditemukan.');
+            }
 
-                $this->replaceHtmlVariants($salesPage, $generated['variants']);
-
-                return $salesPage->fresh()->load('htmlVariants');
-            });
-
-            return response()->json($updatedSalesPage);
+            return $this->success('Sales page berhasil diupdate.', $updated);
         } catch (RuntimeException $exception) {
-            return response()->json([
-                'message' => $exception->getMessage(),
-            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+            return $this->unprocessable($exception->getMessage());
         } catch (QueryException) {
-            return response()->json([
-                'message' => 'Gagal memperbarui sales page di database.',
-            ], Response::HTTP_INTERNAL_SERVER_ERROR);
+            return $this->serverError('Gagal mengupdate sales page di database.');
         }
     }
 
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(SalesPage $salesPage): Response
+    public function destroy(Request $request, int $id): JsonResponse
     {
-        $this->abortIfNotOwnedByAuthUser($salesPage);
-        $salesPage->delete();
+        $deleted = SalesPage::deleteByIdAndUserId($id, (int) $request->user()->id);
 
-        return response()->noContent();
+        if (! $deleted) {
+            return $this->notFound('Sales page tidak ditemukan.');
+        }
+
+        return $this->success('Sales page berhasil dihapus.', null);
     }
 
-    private function abortIfNotOwnedByAuthUser(SalesPage $salesPage): void
+    private function validateSalesPage(Request $request): array
     {
-        abort_unless($salesPage->user_id === auth()->id(), Response::HTTP_FORBIDDEN);
-    }
-
-    /**
-     * @param array<int, array{label:string, plain_html:string}> $variants
-     */
-    private function replaceHtmlVariants(SalesPage $salesPage, array $variants): void
-    {
-        $salesPage->htmlVariants()->delete();
-        $salesPage->htmlVariants()->createMany($variants);
+        return $request->validate([
+            'product_name' => ['required', 'string', 'max:255'],
+            'product_description' => ['required', 'string', 'max:3000'],
+            'key_features' => ['nullable', 'array'],
+            'key_features.*' => ['required', 'string', 'max:255'],
+            'target_audience' => ['nullable', 'string', 'max:255'],
+            'price' => ['nullable', 'string', 'max:100'],
+            'unique_selling_points' => ['nullable', 'string', 'max:1000'],
+        ]);
     }
 }

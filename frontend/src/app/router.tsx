@@ -4,6 +4,7 @@ import { AuthGuard } from '../components/common/AuthGuard';
 import { ArchitecturePage } from '../pages/architecture/ArchitecturePage';
 import { AuthPage } from '../pages/auth/AuthPage';
 import { DashboardPage } from '../pages/dashboard/DashboardPage';
+import { GeminiSettingsPage } from '../pages/settings/GeminiSettingsPage';
 
 export const router = createBrowserRouter([
   {
@@ -20,6 +21,10 @@ export const router = createBrowserRouter([
       {
         path: '/architecture',
         element: <ArchitecturePage />,
+      },
+      {
+        path: '/settings/gemini',
+        element: <GeminiSettingsPage />,
       },
     ],
   },

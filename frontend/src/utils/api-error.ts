@@ -9,7 +9,7 @@ export interface NormalizedApiError {
 
 export function normalizeApiError(error: unknown): NormalizedApiError {
   if (axios.isAxiosError<ApiErrorResponse>(error)) {
-    const fieldErrors = error.response?.data?.errors ?? {};
+    const fieldErrors = error.response?.data?.errors ?? error.response?.data?.data?.errors ?? {};
     const firstFieldError = Object.values(fieldErrors)[0]?.[0];
 
     return {

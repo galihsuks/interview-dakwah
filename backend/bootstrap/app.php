@@ -12,7 +12,6 @@ return Application::configure(basePath: dirname(__DIR__))
         web: __DIR__.'/../routes/web.php',
         api: __DIR__.'/../routes/api.php',
         commands: __DIR__.'/../routes/console.php',
-        health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
@@ -28,8 +27,12 @@ return Application::configure(basePath: dirname(__DIR__))
             }
 
             return response()->json([
+                'status' => 422,
                 'message' => 'Validation failed.',
                 'errors' => $exception->errors(),
+                'data' => [
+                    'errors' => $exception->errors(),
+                ],
             ], 422);
         });
 
@@ -39,8 +42,9 @@ return Application::configure(basePath: dirname(__DIR__))
             }
 
             return response()->json([
+                'status' => 401,
                 'message' => 'Unauthenticated.',
-                'errors' => [],
+                'data' => null,
             ], 401);
         });
     })->create();

@@ -2,62 +2,53 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Http\Controllers\Controller;
-use App\Http\Requests\UpdateGeminiAccountRequest;
 use App\Models\GeminiAccount;
+use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
-class GeminiAccountController extends Controller
+class GeminiAccountController extends BaseApiController
 {
     public function show(Request $request): JsonResponse
     {
-        $account = $request->user()?->geminiAccount;
+        $userId = (int) $request->user()->id;
+        $settings = GeminiAccount::getSettingsByUserId($userId);
 
-        return response()->json($this->toPayload($account));
+        if (! $settings) {
+            GeminiAccount::createDefaultForUser($userId);
+            $settings = GeminiAccount::getSettingsByUserId($userId);
+        }
+
+        return $this->success('Gemini settings loaded.', $this->toPayload($settings));
     }
 
-    public function update(UpdateGeminiAccountRequest $request): JsonResponse
+    public function update(Request $request): JsonResponse
     {
-        $validated = $request->validated();
-        $account = GeminiAccount::firstOrNew([
-            'user_id' => $request->user()->id,
+        $validated = $request->validate([
+            'api_key' => ['nullable', 'string', 'max:500'],
+            'clear_api_key' => ['nullable', 'boolean'],
         ]);
 
-        if (($validated['clear_api_key'] ?? false) === true) {
-            $account->api_key = null;
-        } elseif (array_key_exists('api_key', $validated)) {
-            $apiKey = trim((string) $validated['api_key']);
-            $account->api_key = $apiKey !== '' ? $apiKey : null;
-        }
+        $userId = (int) $request->user()->id;
+        $settings = GeminiAccount::upsertSettingsByUserId($userId, $validated);
 
-        if (array_key_exists('model', $validated)) {
-            $model = trim((string) $validated['model']);
-            $account->model = $model !== '' ? $model : config('services.gemini.model', 'gemini-2.0-flash');
-        } elseif (! $account->exists) {
-            $account->model = config('services.gemini.model', 'gemini-2.0-flash');
-        }
-
-        if (array_key_exists('remaining_quota', $validated)) {
-            $account->remaining_quota = $validated['remaining_quota'];
-        }
-
-        $account->save();
-
-        return response()->json($this->toPayload($account->fresh()));
+        return $this->success('Gemini settings updated.', $this->toPayload($settings));
     }
 
-    private function toPayload(?GeminiAccount $account): array
+    private function toPayload(array $settings): array
     {
-        $fallbackModel = config('services.gemini.model', 'gemini-2.0-flash');
+        $lastQuotaSyncedAt = $settings['last_quota_synced_at'];
+        $updatedAt = $settings['updated_at'];
 
         return [
-            'model' => $account?->model ?? $fallbackModel,
-            'has_api_key' => filled($account?->api_key),
-            'api_key_masked' => $account?->masked_api_key,
-            'remaining_quota' => $account?->remaining_quota,
-            'last_quota_synced_at' => $account?->last_quota_synced_at?->toISOString(),
-            'updated_at' => $account?->updated_at?->toISOString(),
+            'model' => $settings['model'] ?? config('services.gemini.model', 'gemini-2.0-flash'),
+            'has_api_key' => filled($settings['api_key'] ?? null),
+            'api_key_masked' => GeminiAccount::maskApiKey($settings['api_key'] ?? null),
+            'rpm' => $settings['rpm'] ?? 5,
+            'rpd' => $settings['rpd'] ?? 20,
+            'tpm' => $settings['tpm'] ?? null,
+            'last_quota_synced_at' => $lastQuotaSyncedAt ? Carbon::parse($lastQuotaSyncedAt)->toISOString() : null,
+            'updated_at' => $updatedAt ? Carbon::parse($updatedAt)->toISOString() : null,
         ];
     }
 }

@@ -2,41 +2,42 @@
 
 namespace App\Http\Controllers\Auth;
 
-use App\Http\Controllers\Controller;
-use App\Http\Requests\Auth\LoginRequest;
+use App\Http\Controllers\Api\BaseApiController;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Http\Response;
+use Illuminate\Support\Facades\Auth;
 
-class AuthenticatedSessionController extends Controller
+class AuthenticatedSessionController extends BaseApiController
 {
-    /**
-     * Handle an incoming authentication request.
-     */
-    public function store(LoginRequest $request): JsonResponse
+    public function store(Request $request): JsonResponse
     {
-        $request->authenticate();
+        $validated = $request->validate([
+            'email' => ['required', 'email'],
+            'password' => ['required', 'string'],
+        ]);
+
+        $remember = false;
+        if (! Auth::attempt($validated, $remember)) {
+            return $this->unprocessable('Email atau password salah.');
+        }
 
         $user = $request->user();
         $token = $user->createToken('auth_token')->plainTextToken;
 
-        return response()->json([
+        return $this->success('Login berhasil.', [
             'token' => $token,
             'token_type' => 'Bearer',
             'user' => $user,
         ]);
     }
 
-    /**
-     * Destroy an authenticated session.
-     */
-    public function destroy(Request $request): Response
+    public function destroy(Request $request): JsonResponse
     {
         $token = $request->user()?->currentAccessToken();
         if ($token) {
             $token->delete();
         }
 
-        return response()->noContent();
+        return $this->success('Logout berhasil.', null);
     }
 }

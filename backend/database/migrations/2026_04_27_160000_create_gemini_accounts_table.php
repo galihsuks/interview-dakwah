@@ -15,7 +15,7 @@ return new class extends Migration
             $table->id();
             $table->foreignId('user_id')->constrained()->cascadeOnDelete();
             $table->text('api_key')->nullable();
-            $table->string('model')->default('gemini-2.0-flash');
+            $table->string('model')->default('gemini-3-flash-preview');
             $table->unsignedInteger('remaining_quota')->nullable();
             $table->timestamp('last_quota_synced_at')->nullable();
             $table->timestamps();

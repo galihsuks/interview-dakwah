@@ -4,21 +4,21 @@ namespace App\Services;
 
 use App\Models\GeminiAccount;
 use App\Models\User;
-use Illuminate\Http\Client\Response;
+use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Str;
 use RuntimeException;
 
 class SalesPageGenerator
 {
     public function generate(array $input, User $user): array
     {
-        $account = $user->geminiAccount;
-        $apiKey = $account?->api_key;
-        $model = $account?->model ?: config('services.gemini.model', 'gemini-2.0-flash');
+        $account = GeminiAccount::getSettingsByUserId((int) $user->id);
+        $apiKey = $account['api_key'] ?? null;
+        $model = $account['model'] ?? config('services.gemini.model', 'gemini-2.0-flash');
 
         if (blank($apiKey)) {
-            throw new RuntimeException('Gemini API key belum diisi. Buka halaman Architecture untuk mengatur API key.');
+            throw new RuntimeException('Gemini API key belum diisi. Buka halaman Settings untuk mengatur API key.');
         }
 
         $response = Http::timeout(90)
@@ -32,7 +32,9 @@ class SalesPageGenerator
                 ],
             ]);
 
-        $message = data_get($response->json(), 'error.message');
+        $responseJSON = $response->json();
+
+        $message = data_get($responseJSON, 'error.message');
         if ($message) {
             $reason = is_string($message) && $message !== ''
                 ? $message
@@ -41,7 +43,7 @@ class SalesPageGenerator
             throw new RuntimeException('Gagal generate sales page: '.$reason.'.');
         }
 
-        $text = data_get($response->json(), 'candidates.0.content.parts.0.text');
+        $text = data_get($responseJSON, 'candidates.0.content.parts.0.text');
         if (! is_string($text) || blank($text)) {
             throw new RuntimeException('Gagal generate sales page: output teks dari Gemini kosong.');
         }
@@ -53,7 +55,7 @@ class SalesPageGenerator
             throw new RuntimeException('Gagal generate sales page: format output Gemini bukan JSON valid.');
         }
 
-        $this->syncQuotaInfo($account, $response);
+        $this->syncQuotaInfo((int) $user->id, data_get($responseJSON, 'usageMetadata.totalTokenCount'));
 
         return $this->normalizeGeminiOutput($decoded, $input);
     }
@@ -277,50 +279,39 @@ class SalesPageGenerator
         return $score >= 2 ? 'id' : 'en';
     }
 
-    private function syncQuotaInfo(?GeminiAccount $account, Response $response): void
+    private function syncQuotaInfo(int $userId, mixed $usageToken): void
     {
+        if ($usageToken === null) {
+            return;
+        }
+
+        $account = GeminiAccount::getSettingsByUserId($userId);
         if (! $account) {
             return;
         }
 
-        $remaining = $this->extractRemainingQuotaFromHeaders($response);
+        $usage = max((int) $usageToken, 0);
+        $now = now();
+        $currentQuota = (int) ($account['tpm'] ?? 250000);
+        $lastSyncedAt = $account['last_quota_synced_at'] ? Carbon::parse($account['last_quota_synced_at']) : null;
+        $isWithinOneMinute = $lastSyncedAt !== null && $lastSyncedAt->diffInSeconds($now) < 60;
 
-        if ($remaining !== null) {
-            $account->remaining_quota = $remaining;
-        } elseif ($account->remaining_quota !== null) {
-            $account->remaining_quota = max($account->remaining_quota - 1, 0);
-        }
+        $baseQuota = $isWithinOneMinute ? $currentQuota : 250000;
 
-        $account->last_quota_synced_at = now();
-        $account->save();
-    }
+        $currentRpm = (int) ($account['rpm'] ?? 5);
+        $currentRpd = (int) ($account['rpd'] ?? 20);
+        $rpmBase = $isWithinOneMinute ? $currentRpm : 5;
+        $isSameDay = $lastSyncedAt !== null && $lastSyncedAt->isSameDay($now);
+        $rpdBase = $isSameDay ? $currentRpd : 20;
 
-    private function extractRemainingQuotaFromHeaders(Response $response): ?int
-    {
-        $headerCandidates = [
-            'x-ratelimit-remaining',
-            'x-rate-limit-remaining',
-            'x-goog-ratelimit-remaining',
-            'x-goog-quota-remaining',
-        ];
-
-        foreach ($headerCandidates as $headerName) {
-            $value = $response->header($headerName);
-            if (! is_string($value) || trim($value) === '') {
-                continue;
-            }
-
-            if (Str::of($value)->trim()->isEmpty()) {
-                continue;
-            }
-
-            if (preg_match('/\d+/', $value, $matches) !== 1) {
-                continue;
-            }
-
-            return (int) $matches[0];
-        }
-
-        return null;
+        DB::table('gemini_accounts')
+            ->where('user_id', $userId)
+            ->update([
+                'tpm' => max($baseQuota - $usage, 0),
+                'rpm' => max($rpmBase - 1, 0),
+                'rpd' => max($rpdBase - 1, 0),
+                'last_quota_synced_at' => $now,
+                'updated_at' => $now,
+            ]);
     }
 }
