@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 
-import { AppHeader } from "../../components/common/AppHeader";
+import { AppSidebarLayout } from "../../components/common/AppSidebarLayout";
 import { SalesPageForm } from "../../components/forms/SalesPageForm";
 import { SalesPageHistory } from "../../components/history/SalesPageHistory";
-import { useLogoutMutation } from "../../hooks/useAuthMutations";
 import {
     useCreateSalesPageMutation,
     useDeleteSalesPageMutation,
@@ -31,8 +30,6 @@ const initialForm: SalesFormState = {
 
 export function DashboardPage() {
     const token = useAuthStore((state) => state.token);
-    const user = useAuthStore((state) => state.user);
-    const clearSession = useAuthStore((state) => state.clearSession);
     const pushToast = useToastStore((state) => state.pushToast);
     const navigate = useNavigate();
 
@@ -52,8 +49,6 @@ export function DashboardPage() {
     const { mutateAsync: updateSalesPage, isPending: updateSalesPending } =
         useUpdateSalesPageMutation();
     const { mutateAsync: deleteSalesPage } = useDeleteSalesPageMutation();
-    const { mutateAsync: logout, isPending: logoutPending } =
-        useLogoutMutation();
 
     const isSubmitting = createSalesPending || updateSalesPending;
 
@@ -92,7 +87,7 @@ export function DashboardPage() {
         }
     }, [pushToast, salesError, salesErrorData]);
 
-    if (!token || !user) {
+    if (!token) {
         return <Navigate to="/auth" replace />;
     }
 
@@ -159,29 +154,16 @@ export function DashboardPage() {
         }
     };
 
-    const handleLogout = async (): Promise<void> => {
-        try {
-            await logout();
-        } finally {
-            clearSession();
-        }
-    };
-
     const handleReset = () => {
         setSelectedId(null);
         setForm(initialForm);
     };
 
     return (
-        <main className="mx-auto w-[min(1120px,94vw)] py-8">
-            <AppHeader
-                userName={user.name}
-                onLogout={() => {
-                    void handleLogout();
-                }}
-                loading={logoutPending}
-            />
-
+        <AppSidebarLayout
+            title="Workspace"
+            subtitle="Build, regenerate, and manage your AI sales pages."
+        >
             <section className="mb-4 grid gap-4">
                 <SalesPageForm
                     form={form}
@@ -220,6 +202,6 @@ export function DashboardPage() {
                     }}
                 />
             </section>
-        </main>
+        </AppSidebarLayout>
     );
 }

@@ -7,10 +7,10 @@ import {
     Settings2,
 } from "lucide-react";
 import type { FormEvent } from "react";
+import { Navigate } from "react-router-dom";
 import { useState } from "react";
 
-import { AppHeader } from "../../components/common/AppHeader";
-import { useLogoutMutation } from "../../hooks/useAuthMutations";
+import { AppSidebarLayout } from "../../components/common/AppSidebarLayout";
 import {
     useGeminiAccountQuery,
     useUpdateGeminiAccountMutation,
@@ -21,27 +21,19 @@ import { normalizeApiError } from "../../utils/api-error";
 
 export function GeminiSettingsPage() {
     const token = useAuthStore((state) => state.token);
-    const user = useAuthStore((state) => state.user);
-    const clearSession = useAuthStore((state) => state.clearSession);
     const pushToast = useToastStore((state) => state.pushToast);
 
     const [apiKey, setApiKey] = useState("");
     const [showApiKey, setShowApiKey] = useState(false);
 
-    const { mutateAsync: logout, isPending: logoutPending } =
-        useLogoutMutation();
     const { data: geminiSettings, isPending: geminiPending } =
         useGeminiAccountQuery(Boolean(token));
     const { mutateAsync: updateGeminiSettings, isPending: geminiSaving } =
         useUpdateGeminiAccountMutation();
 
-    const handleLogout = async (): Promise<void> => {
-        try {
-            await logout();
-        } finally {
-            clearSession();
-        }
-    };
+    if (!token) {
+        return <Navigate to="/auth" replace />;
+    }
 
     const handleSaveGeminiSettings = async (
         event: FormEvent<HTMLFormElement>,
@@ -80,6 +72,7 @@ export function GeminiSettingsPage() {
         ? new Date(geminiSettings.last_quota_synced_at).toLocaleString(
               "id-ID",
               {
+                  timeZone: "Asia/Jakarta",
                   dateStyle: "medium",
                   timeStyle: "short",
               },
@@ -117,15 +110,10 @@ export function GeminiSettingsPage() {
     ];
 
     return (
-        <main className="mx-auto w-[min(1200px,95vw)] py-6">
-            <AppHeader
-                userName={user?.name ?? "Reviewer"}
-                onLogout={() => {
-                    void handleLogout();
-                }}
-                loading={logoutPending}
-            />
-
+        <AppSidebarLayout
+            title="Gemini Settings"
+            subtitle="Manage API key and monitor quota usage."
+        >
             <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                 <form
                     key={formSeed}
@@ -278,6 +266,6 @@ export function GeminiSettingsPage() {
                     </div>
                 </div>
             </section>
-        </main>
+        </AppSidebarLayout>
     );
 }

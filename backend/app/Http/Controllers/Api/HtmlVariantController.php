@@ -39,11 +39,13 @@ class HtmlVariantController extends BaseApiController
         }
 
         try {
+            $requestId = (string) $request->attributes->get('request_id', '');
             $updatedHtml = $this->generator->regenerateVariantSection(
                 $variant,
                 (string) $validated['section'],
                 (string) $validated['prompt'],
-                $request->user()
+                $request->user(),
+                $requestId
             );
 
             $updatedVariant = HtmlVariant::updatePlainHtmlByIdAndUserId($id, $userId, $updatedHtml);

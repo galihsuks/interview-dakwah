@@ -1,6 +1,4 @@
-import { AppHeader } from '../../components/common/AppHeader';
-import { useLogoutMutation } from '../../hooks/useAuthMutations';
-import { useAuthStore } from '../../store/auth.store';
+import { AppSidebarLayout } from '../../components/common/AppSidebarLayout';
 
 const architectureSections = [
   {
@@ -26,28 +24,8 @@ const architectureSections = [
 ];
 
 export function ArchitecturePage() {
-  const user = useAuthStore((state) => state.user);
-  const clearSession = useAuthStore((state) => state.clearSession);
-  const { mutateAsync: logout, isPending: logoutPending } = useLogoutMutation();
-
-  const handleLogout = async (): Promise<void> => {
-    try {
-      await logout();
-    } finally {
-      clearSession();
-    }
-  };
-
   return (
-    <main className="mx-auto w-[min(1200px,95vw)] py-6">
-      <AppHeader
-        userName={user?.name ?? 'Reviewer'}
-        onLogout={() => {
-          void handleLogout();
-        }}
-        loading={logoutPending}
-      />
-
+    <AppSidebarLayout title="Architecture" subtitle="Technical overview of the project structure and flow.">
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {architectureSections.map((section) => (
           <article key={section.title} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -62,6 +40,6 @@ export function ArchitecturePage() {
           </article>
         ))}
       </section>
-    </main>
+    </AppSidebarLayout>
   );
 }

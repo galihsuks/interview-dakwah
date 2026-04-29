@@ -38,9 +38,10 @@ class SalesPageController extends BaseApiController
     public function store(Request $request): JsonResponse
     {
         $validated = $this->validateSalesPage($request);
+        $requestId = (string) $request->attributes->get('request_id', '');
 
         try {
-            $generated = $this->generator->generate($validated, $request->user());
+            $generated = $this->generator->generate($validated, $request->user(), $requestId);
             $created = SalesPage::createWithVariants(
                 (int) $request->user()->id,
                 $validated,
@@ -59,9 +60,10 @@ class SalesPageController extends BaseApiController
     public function update(Request $request, int $id): JsonResponse
     {
         $validated = $this->validateSalesPage($request);
+        $requestId = (string) $request->attributes->get('request_id', '');
 
         try {
-            $generated = $this->generator->generate($validated, $request->user());
+            $generated = $this->generator->generate($validated, $request->user(), $requestId);
             $updated = SalesPage::updateWithVariants(
                 $id,
                 (int) $request->user()->id,

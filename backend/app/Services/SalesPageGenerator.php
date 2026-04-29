@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\GeminiAccount;
+use App\Models\AppLog;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -11,18 +12,19 @@ use RuntimeException;
 
 class SalesPageGenerator
 {
-    public function generate(array $input, User $user): array
+    public function generate(array $input, User $user, ?string $requestId = null): array
     {
-        $decoded = $this->requestGeminiJson($this->buildPrompt($input), $user);
+        $decoded = $this->requestGeminiJson($this->buildPrompt($input), $user, $requestId);
 
         return $this->normalizeGeminiOutput($decoded, $input);
     }
 
-    public function regenerateVariantSection(array $variant, string $section, string $instructionPrompt, User $user): string
+    public function regenerateVariantSection(array $variant, string $section, string $instructionPrompt, User $user, ?string $requestId = null): string
     {
         $decoded = $this->requestGeminiJson(
             $this->buildVariantRegeneratePrompt($variant, $section, $instructionPrompt),
-            $user
+            $user,
+            $requestId
         );
 
         $plainHtml = trim((string) ($decoded['plain_html'] ?? ''));
@@ -33,7 +35,7 @@ class SalesPageGenerator
         return $plainHtml;
     }
 
-    private function requestGeminiJson(string $prompt, User $user): array
+    private function requestGeminiJson(string $prompt, User $user, ?string $requestId): array
     {
         $account = GeminiAccount::getSettingsByUserId((int) $user->id);
         $apiKey = $account['api_key'] ?? null;
@@ -55,6 +57,18 @@ class SalesPageGenerator
             ]);
 
         $responseJSON = $response->json();
+        AppLog::write(
+            (int) $user->id,
+            'info',
+            $requestId ?? ((string) now()->valueOf()),
+            'Result gemini',
+            [
+                'result' => [
+                    'candidate' => data_get($responseJSON, 'candidates.0', []),
+                    'usage' => data_get($responseJSON, 'usageMetadata', []),
+                ],
+            ]
+        );
 
         $message = data_get($responseJSON, 'error.message');
         if ($message) {
